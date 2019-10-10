@@ -24,8 +24,11 @@ app.get('/monthData/:mon', (req, res) => {
   let month = [];
   if(PAGEDATA.length < 1) return res.json(month);
   
+  let total = 0;
   for (let i = 0; i < 31; i++) {
-    month.push( {x: i+1, y: PAGEDATA[0][i] + PAGEDATA[1][i] + PAGEDATA[2][i] + PAGEDATA[3][i] } );
+    let today = PAGEDATA[0][i] + PAGEDATA[1][i] + PAGEDATA[2][i] + PAGEDATA[3][i];
+    total += today;
+    month.push( { day: i+1, value: today, total: total } );
   }
   res.json(month);
 
