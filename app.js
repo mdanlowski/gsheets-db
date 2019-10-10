@@ -6,68 +6,83 @@ var request = require('request');
 var app = express();
 var path = require('path');
 
+var PAGEDATA = new Array;
+
+
 let port = 4000;
-const SHEET = '10YOTLGf803jrAFnugIMZJWg9pOFBAA6NtXJhllLzj3I';
+const SHEET = '1gnstZzesgirR4BRwp_w897ncdamVrSm6Bmfy4J5_obA';      // expenses sheet
+// const SHEET = '10YOTLGf803jrAFnugIMZJWg9pOFBAA6NtXJhllLzj3I';    // gsheets-db sheet
+
 
 app.set('view engine', 'ejs');
+app.set('json spaces', 2);
 app.use('/public', express.static(path.join(__dirname, '/public/')));
 
-app.get('/test', (req, res) => res.render('test') );
 
-app.get('/sheet', function(req, res){
+app.get('/monthData/:mon', (req, res) => {
+  let monthCode = req.mon;
+  let month = [];
+  if(PAGEDATA.length < 1) return res.json(month);
   
+  for (let i = 0; i < 31; i++) {
+    month.push( {x: i+1, y: PAGEDATA[0][i] + PAGEDATA[1][i] + PAGEDATA[2][i] + PAGEDATA[3][i] } );
+  }
+  res.json(month);
+
+});
+
+
+app.get('/data', (req, res) =>
+  res.json(PAGEDATA)
+);
+
+
+app.get('/sheet', function(req, res){ /* -- GET /sheet ----------------*/
+  // PAGEDATA = []; // Clear memory not to append but to overwrite with each req
+  res.render('sheet', {PAGEDATA});
+
+}); /* -------------------------------- end GET /sheet ----------------*/
+
+function pullTransformedToNumeric(rowData){
+  let numerics = [];
+  rowData.forEach(element => {
+    numerics.push(parseFloat(element[0].replace(/,/g, '.')));
+  });
+  PAGEDATA.push(numerics);
+  return;
+}
+
+
+
+app.listen(port, function() { 
+  console.log(`Listening on port ${port}!`);
+  PAGEDATA = []; // Clear memory not to append but to overwrite with each req
+
   fs.readFile('credentials.json',  (err, content) => {
     if(err) return (console.log('Error loading credentials', err));
-    
+    console.log(1)
     apiAuthorize(JSON.parse(content), handleApiPull);
   });
   
+  var compoundDataRanges = ["'2018+'!F399:F429", "'2018+'!I399:I429", "'2018+'!L399:L429", "'2018+'!O399:O429"];
+
   function handleApiPull(auth) {
     const sheets = google.sheets({version: 'v4', auth});
+    console.log(2)
 
-    var result = sheets.spreadsheets.values.get({
-      spreadsheetId: SHEET,
-      range: 'A1:B10',
-    }, (err, response) => {
-      if (err) return console.log('The API returned an error: ' + err);
-      
-      const rows = response.data.values;
-      
-      res.render('sheet', {rows: rows})
-    });
+    for(let dataRange of compoundDataRanges){
+      sheets.spreadsheets.values.get( { spreadsheetId: SHEET, range: dataRange },
+        function(err, response) {
+          if (err) return console.log('The API returned an error: ' + err);
+          console.log(3)
+          const rows = response.data.values;
+          pullTransformedToNumeric(rows)          
+        }
+      );
+    }
   }
 });
 
-app.get("/v4-get", function(req, res){
-  
-  // Authorization
-  fs.readFile('credentials.json', (err, content) => {
-    if (err) return console.log('Error loading client secret file:', err);
-    // Authorize a client with credentials, then call the Google Sheets API.
-    apiAuthorize(JSON.parse(content), datapull);
-  });
-  
-  // Callback function pulling data
-  function datapull(auth) {
-    
-    const sheets = google.sheets({version: 'v4', auth});
-    
-    // Pulling the data from the specified spreadsheet and the specified range  
-    var result = sheets.spreadsheets.values.get({
-      spreadsheetId: '1UIV4RkOx8KJK2zQYig0klH5_f8FCOdwIWV8YF2VyF8I',
-      range: 'tab2!A1:A10',
-    }, (err, response)=>{
-      if (err) return console.log('The API returned an error: ' + err);
-      
-      const rows = response.data.values;
-      console.log(rows)
-      // (4) Rendering the page and passing the rows data in
-      res.render('test', {rows: rows})
-    });
-  }
-});
-
-app.listen(port, () => console.log(`Listening on port ${port}!`))
 
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly'];

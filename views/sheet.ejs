@@ -6,16 +6,16 @@
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>Document</title>
   <link rel="stylesheet" href="./public/main.css">
+
+  <script src="https://d3js.org/d3.v4.js"></script>
+
 </head>
 <body>
-  <h1><%= "Google Sheets as Database" %></h1>
+  <h2>expenses</h2>
 
-  <ul>
-  <% rows.forEach(function(row) { %>
-    <li><%= row %></li>
-  <% }); %>
-  </ul>
+  <div id="plot"></div>
 
-
+  
+  <script src="./public/process-data.js"></script>
 </body>
 </html>
