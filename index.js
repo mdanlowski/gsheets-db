@@ -90,3 +90,5 @@ function listMajors(auth) {
     }
   });
 }
+
+export { authorize as apiAuthorize };
