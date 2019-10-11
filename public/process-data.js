@@ -33,6 +33,8 @@ d3.json("/monthData/sty",
     // Add the line
     svg.append("path")
       .datum(data)
+      .attr("class", "line")
+      .attr("id", "line1")
       .attr("fill", "none")
       .attr("stroke", "steelblue")
       .attr("stroke-width", 1.5)
@@ -44,12 +46,17 @@ d3.json("/monthData/sty",
 
       svg.append("path")
       .datum(data)
+      .attr("class", "line")
+      .attr("id", "line2")
       .attr("fill", "none")
       .attr("stroke", "red")
       .attr("stroke-width", 1.5)
       .attr("d", d3.line()
         .x(function(d) { return x(d.day) })
         .y(function(d) { return y(d.total) })
-      ) 
+      )
+    
   }
 )
+
+//.curve(d3.curveCardinal)

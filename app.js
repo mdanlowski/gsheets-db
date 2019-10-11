@@ -1,5 +1,5 @@
-var express = require('express');
 var fs = require('fs');
+var express = require('express');
 var readline = require('readline');
 var {google} = require('googleapis');
 var request = require('request');
@@ -12,6 +12,8 @@ var PAGEDATA = new Array;
 let port = 4000;
 const SHEET = '1gnstZzesgirR4BRwp_w897ncdamVrSm6Bmfy4J5_obA';      // expenses sheet
 // const SHEET = '10YOTLGf803jrAFnugIMZJWg9pOFBAA6NtXJhllLzj3I';    // gsheets-db sheet
+var cherryPickedRanges = ["'2018+'!F399:F429", "'2018+'!I399:I429", "'2018+'!L399:L429", "'2018+'!O399:O429"];
+var rectRanges = ["'2018+'!F399:O429"]//, "'2018+'!I399:I429", "'2018+'!L399:L429", "'2018+'!O399:O429"];
 
 
 app.set('view engine', 'ejs');
@@ -34,6 +36,35 @@ app.get('/monthData/:mon', (req, res) => {
 
 });
 
+app.get('/monthData', (req, res) => {
+  let month = [];
+  
+  fs.readFile('credentials.json',  (err, content) => {
+    if(err) return (console.log('Error loading credentials', err));
+    console.log('connecting...')
+    apiAuthorize(JSON.parse(content), handleApiPull);
+  });
+
+  function handleApiPull(auth) {
+    const sheets = google.sheets({version: 'v4', auth});
+    console.log('authenticated')
+
+    sheets.spreadsheets.values.get(
+      { spreadsheetId: SHEET, range: rectRanges },
+      function(err, response) {
+        if (err) return console.log('The API returned an error: ' + err);
+        console.log('pulling rect range');
+        const rows = response.data.values;
+        filterAndToNum(rows)
+      }
+    );
+  }
+
+
+
+  res.json(month);
+
+});
 
 app.get('/data', (req, res) =>
   res.json(PAGEDATA)
@@ -45,6 +76,22 @@ app.get('/sheet', function(req, res){ /* -- GET /sheet ----------------*/
   res.render('sheet', {PAGEDATA});
 
 }); /* -------------------------------- end GET /sheet ----------------*/
+
+
+
+function filterAndToNum(rowData) {
+  console.log('filtering descriptions...')
+  filtered = new Array;
+  for (const row of rowData) {
+    let col = new Array;
+    for (let j3 = 0; j3 < 10; j3 += 3) {
+      col.push(parseFloat(row[j3].replace(/,/g, '.'))); 
+    }
+    filtered.push(col);
+  }
+  return filtered;
+}
+
 
 function pullTransformedToNumeric(rowData){
   let numerics = [];
@@ -59,31 +106,31 @@ function pullTransformedToNumeric(rowData){
 
 app.listen(port, function() { 
   console.log(`Listening on port ${port}!`);
-  PAGEDATA = []; // Clear memory not to append but to overwrite with each req
+  // PAGEDATA = []; // Clear memory not to append but to overwrite with each req
 
-  fs.readFile('credentials.json',  (err, content) => {
-    if(err) return (console.log('Error loading credentials', err));
-    console.log(1)
-    apiAuthorize(JSON.parse(content), handleApiPull);
-  });
+  // fs.readFile('credentials.json',  (err, content) => {
+  //   if(err) return (console.log('Error loading credentials', err));
+  //   console.log(1)
+  //   apiAuthorize(JSON.parse(content), handleApiPull);
+  // });
   
-  var compoundDataRanges = ["'2018+'!F399:F429", "'2018+'!I399:I429", "'2018+'!L399:L429", "'2018+'!O399:O429"];
+  // var compoundDataRanges = ["'2018+'!F399:F429", "'2018+'!I399:I429", "'2018+'!L399:L429", "'2018+'!O399:O429"];
 
-  function handleApiPull(auth) {
-    const sheets = google.sheets({version: 'v4', auth});
-    console.log(2)
+  // function handleApiPull(auth) {
+  //   const sheets = google.sheets({version: 'v4', auth});
+  //   console.log(2)
 
-    for(let dataRange of compoundDataRanges){
-      sheets.spreadsheets.values.get( { spreadsheetId: SHEET, range: dataRange },
-        function(err, response) {
-          if (err) return console.log('The API returned an error: ' + err);
-          console.log(3)
-          const rows = response.data.values;
-          pullTransformedToNumeric(rows)          
-        }
-      );
-    }
-  }
+  //   for(let dataRange of compoundDataRanges){
+  //     sheets.spreadsheets.values.get( { spreadsheetId: SHEET, range: dataRange },
+  //       function(err, response) {
+  //         if (err) return console.log('The API returned an error: ' + err);
+  //         console.log(3)
+  //         const rows = response.data.values;
+  //         pullTransformedToNumeric(rows)          
+  //       }
+  //     );
+  //   }
+  // }
 });
 
 
