@@ -14,34 +14,19 @@ const SHEET = '1gnstZzesgirR4BRwp_w897ncdamVrSm6Bmfy4J5_obA';      // expenses s
 // const SHEET = '10YOTLGf803jrAFnugIMZJWg9pOFBAA6NtXJhllLzj3I';    // gsheets-db sheet
 var cherryPickedRanges = ["'2018+'!F399:F429", "'2018+'!I399:I429", "'2018+'!L399:L429", "'2018+'!O399:O429"];
 var rectRanges = ["'2018+'!F399:O429"]//, "'2018+'!I399:I429", "'2018+'!L399:L429", "'2018+'!O399:O429"];
-
+                        //  '2018+'!F434:O464
 
 app.set('view engine', 'ejs');
 app.set('json spaces', 2);
 app.use('/public', express.static(path.join(__dirname, '/public/')));
 
-
-app.get('/monthData/:mon', (req, res) => {
-  let monthCode = req.mon;
-  let month = [];
-  if(PAGEDATA.length < 1) return res.json(month);
-  
-  let total = 0;
-  for (let i = 0; i < 31; i++) {
-    let today = PAGEDATA[0][i] + PAGEDATA[1][i] + PAGEDATA[2][i] + PAGEDATA[3][i];
-    total += today;
-    month.push( { day: i+1, value: today, total: total } );
-  }
-  res.json(month);
-
-});
-
-app.get('/monthData', (req, res) => {
+app.get('/monthData/:range', (req, res) => {
+  let dataRange = req.params.range;
   let month = [];
   
   fs.readFile('credentials.json',  (err, content) => {
     if(err) return (console.log('Error loading credentials', err));
-    console.log('connecting...')
+    console.log('connecting...');
     apiAuthorize(JSON.parse(content), handleApiPull);
   });
 
@@ -50,19 +35,19 @@ app.get('/monthData', (req, res) => {
     console.log('authenticated')
 
     sheets.spreadsheets.values.get(
-      { spreadsheetId: SHEET, range: rectRanges },
+      { spreadsheetId: SHEET, range: dataRange },
       function(err, response) {
         if (err) return console.log('The API returned an error: ' + err);
         console.log('pulling rect range');
         const rows = response.data.values;
-        filterAndToNum(rows)
+        res.json(
+          reduceToSums(filterAndToNum(rows))
+        );
       }
     );
   }
 
-
-
-  res.json(month);
+  // res.json(month);
 
 });
 
@@ -77,18 +62,34 @@ app.get('/sheet', function(req, res){ /* -- GET /sheet ----------------*/
 
 }); /* -------------------------------- end GET /sheet ----------------*/
 
-
+function reduceToSums(data1x4) {
+  let final = [];
+  let total = 0;
+  for (let i = 0; i < 31; i++){ //data1x4.length; i++) {
+    let today = data1x4[i][0] + data1x4[i][1] + data1x4[i][2] + data1x4[i][3];
+    total += today;
+    final.push({ day: i+1, value: today, total: total })
+  }
+  return final;
+}
 
 function filterAndToNum(rowData) {
   console.log('filtering descriptions...')
-  filtered = new Array;
+  // console.log(rowData)
+  filtered = [];
   for (const row of rowData) {
     let col = new Array;
     for (let j3 = 0; j3 < 10; j3 += 3) {
-      col.push(parseFloat(row[j3].replace(/,/g, '.'))); 
+      try {
+        col.push(parseFloat(row[j3].replace(/,/g, '.')));
+      }
+      catch(error) {
+        col.push(0)
+      }
     }
     filtered.push(col);
   }
+  console.log(filtered)
   return filtered;
 }
 
