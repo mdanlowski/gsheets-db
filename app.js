@@ -15,6 +15,7 @@ const SHEET = '1gnstZzesgirR4BRwp_w897ncdamVrSm6Bmfy4J5_obA';      // expenses s
 var cherryPickedRanges = ["'2018+'!F399:F429", "'2018+'!I399:I429", "'2018+'!L399:L429", "'2018+'!O399:O429"];
 var rectRanges = ["'2018+'!F399:O429"]//, "'2018+'!I399:I429", "'2018+'!L399:L429", "'2018+'!O399:O429"];
                         //  '2018+'!F434:O464
+var monToMonDiff = 35;
 
 app.set('view engine', 'ejs');
 app.set('json spaces', 2);
@@ -38,8 +39,10 @@ app.get('/monthData/:range', (req, res) => {
       { spreadsheetId: SHEET, range: dataRange },
       function(err, response) {
         if (err) return console.log('The API returned an error: ' + err);
-        console.log('pulling rect range');
+        // console.log('pulling rect range');
         const rows = response.data.values;
+        res.header("Access-Control-Allow-Origin", "*");
+        res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
         res.json(
           reduceToSums(filterAndToNum(rows))
         );
@@ -66,6 +69,7 @@ function reduceToSums(data1x4) {
   let final = [];
   let total = 0;
   for (let i = 0; i < 31; i++){ //data1x4.length; i++) {
+    if(data1x4[i] == undefined) break;
     let today = data1x4[i][0] + data1x4[i][1] + data1x4[i][2] + data1x4[i][3];
     total += today;
     final.push({ day: i+1, value: today, total: total })
@@ -74,14 +78,15 @@ function reduceToSums(data1x4) {
 }
 
 function filterAndToNum(rowData) {
-  console.log('filtering descriptions...')
+  // console.log('filtering descriptions...')
   // console.log(rowData)
   filtered = [];
   for (const row of rowData) {
     let col = new Array;
     for (let j3 = 0; j3 < 10; j3 += 3) {
       try {
-        col.push(parseFloat(row[j3].replace(/,/g, '.')));
+        let num = parseFloat(row[j3].replace(/,/g, '.'));
+        col.push( isNaN(num) ? 0 : num );
       }
       catch(error) {
         col.push(0)
@@ -89,7 +94,7 @@ function filterAndToNum(rowData) {
     }
     filtered.push(col);
   }
-  console.log(filtered)
+  // console.log(filtered)
   return filtered;
 }
 

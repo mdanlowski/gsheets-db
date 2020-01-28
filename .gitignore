@@ -3,3 +3,5 @@ token.json
 colscheme.txt
 node_modules
 .DS_Store
+secrets
+browser-only
