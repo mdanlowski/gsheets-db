@@ -5,41 +5,113 @@ var {google} = require('googleapis');
 var request = require('request');
 var app = express();
 var path = require('path');
+var cors = require('cors')
+
+const port = 4000;
 
 var PAGEDATA = new Array;
 
+const SHEET_NAME = "'2018+'!";
+const SHEET_ID = '1gnstZzesgirR4BRwp_w897ncdamVrSm6Bmfy4J5_obA';      // expenses sheet
 
-let port = 4000;
-const SHEET = '1gnstZzesgirR4BRwp_w897ncdamVrSm6Bmfy4J5_obA';      // expenses sheet
-// const SHEET = '10YOTLGf803jrAFnugIMZJWg9pOFBAA6NtXJhllLzj3I';    // gsheets-db sheet
+// const SHEET_ID = '10YOTLGf803jrAFnugIMZJWg9pOFBAA6NtXJhllLzj3I';    // gsheets-db sheet
 var cherryPickedRanges = ["'2018+'!F399:F429", "'2018+'!I399:I429", "'2018+'!L399:L429", "'2018+'!O399:O429"];
 var rectRanges = ["'2018+'!F399:O429"]//, "'2018+'!I399:I429", "'2018+'!L399:L429", "'2018+'!O399:O429"];
                         //  '2018+'!F434:O464
 var monToMonDiff = 35;
 
+// app.use(cors);
 app.set('view engine', 'ejs');
 app.set('json spaces', 2);
 app.use('/public', express.static(path.join(__dirname, '/public/')));
+app.use(require('body-parser')());
+
+app.options('*', cors());
+
+/* 
+ * Pass all operations thru this authentication handler
+ */
+async function authorize(callback){
+  fs.readFile('credentials.json', (err, content) => {
+    if(err){
+      console.log('Error loading credentials', err);
+      return false;
+    }
+    console.log('connecting...');
+    apiAuthorize(
+      JSON.parse(content), callback
+    );
+  });
+}
+
+app.post('/data', async (req, res) => {
+
+  console.log(req.body, '-- body')
+  const payload = req.body;
+
+  let inputRange = await fetchCursorLocation();
+  let newCursor = parseInt(inputRange) + 1;
+  inputRange = SHEET_NAME + 'F' + inputRange;
+
+  console.log("-- Writing to ::", inputRange);
+
+  let values = [
+    [ 
+      payload.col1Val, payload.col1Desc, null,
+      payload.col2Val, payload.col2Desc, null,
+      payload.col3Val, payload.col3Desc, null,
+      payload.col4Val, payload.col4Desc, null
+    ],
+  ];
+  let body = { values: values };
+
+  authorize(directApiWrite);
+  function directApiWrite(auth) {
+    const sheets = google.sheets({version: 'v4', auth}); console.log('authenticated!');
+
+    sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: inputRange,
+      valueInputOption: "USER_ENTERED",
+      resource: body
+    }).then((response) => {
+      const result = response.data;
+      let msg = `${result.updatedCells} cells updated.`;
+
+      authorize(bumpCursor);
+      function bumpCursor(auth) {
+        const sheets = google.sheets({version: 'v4', auth}); console.log('authenticated!');
+        
+        sheets.spreadsheets.values.update({
+          spreadsheetId: SHEET_ID,
+          range: SHEET_NAME + "A888",
+          valueInputOption: "USER_ENTERED",
+          resource: { values: [[newCursor]] }
+        }).then((bumpResponse) => {
+          msg += ` Cursor updated and moved to ${newCursor}`
+          console.log(msg);
+          res.header("Access-Control-Allow-Origin", "*");
+          res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+          res.json( {result: msg, data: result} );
+        })
+      }
+    })
+  }
+});
+
 
 app.get('/monthData/:range', (req, res) => {
   let dataRange = req.params.range;
   let month = [];
   
-  fs.readFile('credentials.json',  (err, content) => {
-    if(err) return (console.log('Error loading credentials', err));
-    console.log('connecting...');
-    apiAuthorize(JSON.parse(content), handleApiPull);
-  });
-
-  function handleApiPull(auth) {
-    const sheets = google.sheets({version: 'v4', auth});
-    console.log('authenticated')
+  authorize(directApiRead);
+  function directApiRead(auth) {
+    const sheets = google.sheets({version: 'v4', auth}); console.log('authenticated!');
 
     sheets.spreadsheets.values.get(
-      { spreadsheetId: SHEET, range: dataRange },
+      { spreadsheetId: SHEET_ID, range: dataRange },
       function(err, response) {
         if (err) return console.log('The API returned an error: ' + err);
-        // console.log('pulling rect range');
         const rows = response.data.values;
         res.header("Access-Control-Allow-Origin", "*");
         res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
@@ -53,6 +125,36 @@ app.get('/monthData/:range', (req, res) => {
   // res.json(month);
 
 });
+
+app.get('/testCursor', async (req, res) => {
+  let c = await fetchCursorLocation();
+  res.json(c);
+});
+
+async function fetchCursorLocation(){
+  let p = new Promise(
+    async function(resolve, reject){
+      authorize(getCursor);
+      async function getCursor(auth) {
+        const sheets = google.sheets({version: 'v4', auth}); console.log('authenticated!');
+    
+        const request = sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: SHEET_NAME + "A888" });
+        request.then(function(response) {
+          let data = response.data.values;
+          resolve(data);
+        }, function(reason) {
+          console.error('error: ' + reason);
+          reject(error);
+        });
+      }    
+    }
+  );
+  return await p.then( (dat) => {
+    console.log("-- Current cursor position in expenses sheet ::", dat);
+    return dat
+  });
+}
+
 
 app.get('/data', (req, res) =>
   res.json(PAGEDATA)
@@ -127,7 +229,7 @@ app.listen(port, function() {
   //   console.log(2)
 
   //   for(let dataRange of compoundDataRanges){
-  //     sheets.spreadsheets.values.get( { spreadsheetId: SHEET, range: dataRange },
+  //     sheets.spreadsheets.values.get( { spreadsheetId: SHEET_ID, range: dataRange },
   //       function(err, response) {
   //         if (err) return console.log('The API returned an error: ' + err);
   //         console.log(3)
@@ -141,7 +243,7 @@ app.listen(port, function() {
 
 
 
-const SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly'];
+const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 const TOKEN_PATH = 'token.json';
 
 /* @TODO export auth to module */
