@@ -1,2 +1,2 @@
 # gsheets-db
-Tinkering with google sheets as a database
+Google Docs sheets app can make an amusing impromptu database
